@@ -159,6 +159,15 @@ body{
   color:#fff;
   filter:drop-shadow(0 0 4px rgba(255,255,255,0.9));
 }
+/* 按钮点击脉冲动画 */
+.flash-unit.pulse{
+  animation:flashPulse 0.3s ease;
+}
+@keyframes flashPulse{
+  0%{transform:scale(1);}
+  40%{transform:scale(0.85);box-shadow:inset 0 2px 6px rgba(0,0,0,0.4), 0 0 16px rgba(255,200,50,0.6);}
+  100%{transform:scale(1);}
+}
 
 /* ===================== 中部机身（皮革） ===================== */
 .mid-body{
@@ -588,41 +597,6 @@ body{
   .film-card{width:170px;}
 }
 
-/* ===================== 横屏适配 ===================== */
-@media(orientation:landscape) and (max-height:500px){
-  .camera{
-    width:min(100vw,760px);height:min(100dvh,400px);
-    flex-direction:row;border-radius:24px;
-  }
-  .top-plate{
-    width:70px;height:100%;flex-direction:column;
-    padding:14px 8px;gap:10px;
-    border-bottom:none;border-right:1px solid rgba(0,0,0,0.2);
-  }
-  .brand{font-size:9px;letter-spacing:2px;writing-mode:vertical-rl;}
-  .viewfinder-window{width:36px;height:48px;}
-  .flash-unit{width:32px;height:36px;}
-  .mid-body{flex:1;flex-direction:row;padding:12px 14px;gap:12px;}
-  .lens-assembly{flex:1;height:100%;}
-  .lens-outer-ring{width:100%;height:100%;aspect-ratio:auto;max-width:none;}
-  .controls{
-    width:110px;height:100%;flex-direction:column;
-    justify-content:center;gap:20px;padding:12px 8px;
-    border-top:none;border-left:1px solid rgba(0,0,0,0.25);
-  }
-  .shutter-btn{width:64px;height:64px;}
-  .filter-dial{width:52px;height:52px;}
-  .film-card{width:160px;}
-  /* 横屏：缩放控件在取景框内左侧，垂直排列 */
-  .zoom-controls{
-    bottom:auto;left:10px;top:50%;
-    transform:translateY(-50%);
-    flex-direction:column;
-  }
-  /* 横屏：隐藏LIVE字样 */
-  .status-bar{display:none !important;}
-}
-
 /* ===================== 缩放控件 ===================== */
 .zoom-controls{
   position:absolute;
@@ -675,6 +649,41 @@ body{
 #viewfinder{
   transition:filter 0.4s ease, transform 0.3s ease;
   transform-origin:center center;
+}
+
+/* ===================== 横屏适配（放在最后确保优先级） ===================== */
+@media(orientation:landscape) and (max-height:500px){
+  .camera{
+    width:min(100vw,760px);height:min(100dvh,400px);
+    flex-direction:row;border-radius:24px;
+  }
+  .top-plate{
+    width:70px;height:100%;flex-direction:column;
+    padding:14px 8px;gap:10px;
+    border-bottom:none;border-right:1px solid rgba(0,0,0,0.2);
+  }
+  .brand{font-size:9px;letter-spacing:2px;writing-mode:vertical-rl;}
+  .viewfinder-window{width:36px;height:48px;}
+  .flash-unit{width:32px;height:36px;}
+  .mid-body{flex:1;flex-direction:row;padding:12px 14px;gap:12px;}
+  .lens-assembly{flex:1;height:100%;}
+  .lens-outer-ring{width:100%;height:100%;aspect-ratio:auto;max-width:none;}
+  .controls{
+    width:110px;height:100%;flex-direction:column;
+    justify-content:center;gap:20px;padding:12px 8px;
+    border-top:none;border-left:1px solid rgba(0,0,0,0.25);
+  }
+  .shutter-btn{width:64px;height:64px;}
+  .filter-dial{width:52px;height:52px;}
+  .film-card{width:160px;}
+  /* 横屏：缩放控件在取景框内左侧，垂直排列 */
+  .zoom-controls{
+    bottom:auto;left:12px;top:50%;
+    transform:translateY(-50%);
+    flex-direction:column;
+  }
+  /* 横屏：隐藏LIVE字样 */
+  .status-bar{display:none !important;}
 }
 </style>
 </head>
@@ -1055,12 +1064,26 @@ filterDial.addEventListener('click', () => {
 });
 
 /* ===================== 闪光灯开关 ===================== */
+let flashOn = true; // 闪光灯默认开启
+
+/* 更新闪光灯UI状态 */
+function updateFlashUI(){
+  flashUnit.classList.toggle('on', flashOn);
+  flashUnit.classList.toggle('off', !flashOn);
+  flashUnit.setAttribute('aria-label', flashOn ? '闪光灯：开（点击关闭）' : '闪光灯：关（点击开启）');
+}
+updateFlashUI(); // 初始化
+
 function toggleFlash(){
   initAudio();
   playButtonClick();
   vibrate(20);
   flashOn = !flashOn;
   updateFlashUI();
+  // 按钮点击脉冲反馈
+  flashUnit.classList.remove('pulse');
+  void flashUnit.offsetWidth;
+  flashUnit.classList.add('pulse');
   // 短暂显示状态提示
   filterLabel.textContent = flashOn ? '⚡ 闪光灯：开' : '⚡ 闪光灯：关';
   filterLabel.classList.remove('show');
@@ -1080,15 +1103,6 @@ flashUnit.addEventListener('keydown', (e) => {
 /* ===================== 拍照 ===================== */
 let isCapturing = false;
 let photosTaken = 0;
-let flashOn = true; // 闪光灯默认开启
-
-/* 更新闪光灯UI状态 */
-function updateFlashUI(){
-  flashUnit.classList.toggle('on', flashOn);
-  flashUnit.classList.toggle('off', !flashOn);
-  flashUnit.setAttribute('aria-label', flashOn ? '闪光灯：开（点击关闭）' : '闪光灯：关（点击开启）');
-}
-updateFlashUI(); // 初始化
 
 shutterBtn.addEventListener('click', () => {
   if(!cameraReady || isCapturing) return;
@@ -1325,5 +1339,6 @@ document.addEventListener('visibilitychange', () => {
 </script>
 </body>
 </html>
+
 
 
