@@ -82,6 +82,10 @@ body{
   text-shadow:0 1px 0 rgba(255,255,255,0.5);
   display:flex;align-items:center;gap:6px;
 }
+.brand-wrap{
+  display:flex;align-items:center;gap:12px;
+  flex:1;
+}
 .brand-dot{
   width:10px;height:10px;border-radius:50%;
   background:radial-gradient(circle at 35% 30%, #ff4060, var(--shutter-red) 50%, var(--shutter-red-dark));
@@ -108,14 +112,52 @@ body{
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 2px rgba(0,0,0,0.2);
   display:flex;align-items:center;justify-content:center;
   position:relative;
+  cursor:pointer;
+  transition:all 0.2s ease;
+  -webkit-tap-highlight-color:transparent;
 }
+.flash-unit:active{transform:scale(0.9);box-shadow:inset 0 2px 4px rgba(0,0,0,0.3);}
 .flash-unit::before{
   content:'';width:28px;height:16px;border-radius:3px;
   background:linear-gradient(135deg, #fff8e0, #ffe8a0);
   box-shadow:0 0 8px rgba(255,220,100,0.4);
+  transition:all 0.3s ease;
+}
+.flash-unit .flash-icon{
+  position:absolute;
+  color:#d4880a;
+  filter:drop-shadow(0 0 2px rgba(255,200,50,0.6));
+  transition:all 0.3s ease;
+  z-index:2;
+}
+/* 闪光灯关闭状态 */
+.flash-unit.off::before{
+  background:linear-gradient(135deg, #b8b4ac, #98948c);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,0.3);
+}
+.flash-unit.off .flash-icon{
+  color:#7a7670;
+  filter:none;
+  opacity:0.6;
+}
+/* 关闭状态斜杠（叠加在灯泡上） */
+.flash-unit.off::after{
+  content:'';
+  position:absolute;
+  top:50%;left:6px;right:6px;
+  height:2px;
+  background:rgba(80,76,70,0.7);
+  transform:rotate(-30deg);
+  border-radius:1px;
+  z-index:3;
+  pointer-events:none;
 }
 .flash-unit.firing::before{
   background:#fff;box-shadow:0 0 30px #fff, 0 0 60px rgba(255,240,180,0.8);
+}
+.flash-unit.firing .flash-icon{
+  color:#fff;
+  filter:drop-shadow(0 0 4px rgba(255,255,255,0.9));
 }
 
 /* ===================== 中部机身（皮革） ===================== */
@@ -514,11 +556,9 @@ body{
 
 /* ===================== 顶部状态条 ===================== */
 .status-bar{
-  position:absolute;top:8px;left:50%;
-  transform:translateX(-50%);
-  display:flex;align-items:center;gap:8px;
-  z-index:50;
+  display:flex;align-items:center;gap:6px;
   opacity:0;transition:opacity 0.3s;
+  white-space:nowrap;
 }
 .status-bar.show{opacity:1;}
 .status-dot{
@@ -529,8 +569,8 @@ body{
 }
 @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
 .status-text{
-  font-size:10px;color:rgba(255,255,255,0.7);
-  font-weight:600;letter-spacing:1px;
+  font-size:9px;color:rgba(60,50,40,0.65);
+  font-weight:700;letter-spacing:1px;
 }
 
 /* ===================== 桌面端适配 ===================== */
@@ -573,15 +613,25 @@ body{
   .shutter-btn{width:64px;height:64px;}
   .filter-dial{width:52px;height:52px;}
   .film-card{width:160px;}
-  .film-slot{bottom:auto;top:0;left:auto;right:0;width:6px;height:60%;}
-  .film-card.ejecting{transform:translateX(-50%) translateY(0) translateX(110%) scale(1);}
+  /* 横屏：缩放控件在取景框内左侧，垂直排列 */
+  .zoom-controls{
+    bottom:auto;left:10px;top:50%;
+    transform:translateY(-50%);
+    flex-direction:column;
+  }
+  /* 横屏：隐藏LIVE字样 */
+  .status-bar{display:none !important;}
 }
 
 /* ===================== 缩放控件 ===================== */
 .zoom-controls{
-  position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:6px;z-index:5;
-  opacity:0;transition:opacity 0.3s;
+  position:absolute;
+  bottom:-30px;left:50%;
+  transform:translateX(-50%);
+  display:flex;align-items:center;gap:6px;
+  z-index:10;
+  opacity:0;
+  transition:opacity 0.3s, bottom 0.4s cubic-bezier(0.22,1,0.36,1), left 0.4s cubic-bezier(0.22,1,0.36,1), top 0.4s cubic-bezier(0.22,1,0.36,1), transform 0.4s cubic-bezier(0.22,1,0.36,1), flex-direction 0.4s;
 }
 .zoom-controls.show{opacity:1;}
 .zoom-pill{
@@ -633,9 +683,17 @@ body{
 <div class="camera" id="camera">
   <!-- 顶部面板 -->
   <div class="top-plate">
-    <div class="brand"><span class="brand-dot"></span>POLAROID</div>
+    <div class="brand-wrap">
+      <div class="brand"><span class="brand-dot"></span>POLAROID</div>
+      <div class="status-bar" id="statusBar">
+        <span class="status-dot"></span>
+        <span class="status-text">LIVE · 后置镜头</span>
+      </div>
+    </div>
     <div class="viewfinder-window"></div>
-    <div class="flash-unit" id="flashUnit"></div>
+    <div class="flash-unit" id="flashUnit" role="button" aria-label="闪光灯开关" tabindex="0">
+      <svg class="flash-icon" viewBox="0 0 24 24" width="14" height="14"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor"/></svg>
+    </div>
   </div>
 
   <!-- 中部机身 -->
@@ -654,12 +712,13 @@ body{
             </div>
             <div class="flash-burst" id="flashBurst"></div>
             <div class="lens-reflection"></div>
-            <div class="zoom-controls" id="zoomControls">
-              <button class="zoom-pill" data-zoom="1">1x</button>
-              <button class="zoom-pill" data-zoom="2">2x</button>
-              <button class="zoom-pill" data-zoom="3">3x</button>
-            </div>
           </div>
+        </div>
+        <!-- 缩放控件（竖屏在取景框外下方灰色区域，横屏在取景框内左侧） -->
+        <div class="zoom-controls" id="zoomControls">
+          <button class="zoom-pill" data-zoom="1">1x</button>
+          <button class="zoom-pill" data-zoom="2">2x</button>
+          <button class="zoom-pill" data-zoom="3">3x</button>
         </div>
       </div>
     </div>
@@ -705,12 +764,6 @@ body{
     <div class="start-sub">需要访问你的相机以启用实时取景<br>将自动调用后置摄像头</div>
     <button class="start-btn" id="startBtn">启动相机</button>
     <div class="start-error" id="startError"></div>
-  </div>
-
-  <!-- 状态条 -->
-  <div class="status-bar" id="statusBar">
-    <span class="status-dot"></span>
-    <span class="status-text">LIVE · 后置镜头</span>
   </div>
 </div>
 
@@ -905,6 +958,25 @@ function playChime(){
   });
 }
 
+/* 对焦成功提示音（佳能风格双音尖锐哔） */
+function playFocusBeep(){
+  if(!audioCtx) return;
+  const t = audioCtx.currentTime;
+  [2200, 2600].forEach((freq, i) => {
+    const o = audioCtx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t + i*0.08);
+    o.frequency.exponentialRampToValueAtTime(freq * 1.1, t + i*0.08 + 0.05);
+    const g = audioCtx.createGain();
+    const st = t + i*0.08;
+    g.gain.setValueAtTime(0, st);
+    g.gain.linearRampToValueAtTime(0.15, st + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.001, st + 0.07);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(st); o.stop(st + 0.08);
+  });
+}
+
 /* ===================== 相机初始化 ===================== */
 let stream = null;
 let cameraReady = false;
@@ -947,6 +1019,7 @@ async function startCamera(){
       focusCenter.classList.remove('focusing');
       focusCenter.classList.add('locked');
       vibrate(30);
+      playFocusBeep();
     }, 800);
   }catch(err){
     console.error('Camera error:', err);
@@ -981,9 +1054,41 @@ filterDial.addEventListener('click', () => {
   setTimeout(() => { filterDial.style.transform = ''; }, 150);
 });
 
+/* ===================== 闪光灯开关 ===================== */
+function toggleFlash(){
+  initAudio();
+  playButtonClick();
+  vibrate(20);
+  flashOn = !flashOn;
+  updateFlashUI();
+  // 短暂显示状态提示
+  filterLabel.textContent = flashOn ? '⚡ 闪光灯：开' : '⚡ 闪光灯：关';
+  filterLabel.classList.remove('show');
+  void filterLabel.offsetWidth;
+  filterLabel.classList.add('show');
+  setTimeout(() => {
+    if(filterLabel.textContent.startsWith('⚡')){
+      filterLabel.classList.remove('show');
+    }
+  }, 1200);
+}
+flashUnit.addEventListener('click', toggleFlash);
+flashUnit.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleFlash(); }
+});
+
 /* ===================== 拍照 ===================== */
 let isCapturing = false;
 let photosTaken = 0;
+let flashOn = true; // 闪光灯默认开启
+
+/* 更新闪光灯UI状态 */
+function updateFlashUI(){
+  flashUnit.classList.toggle('on', flashOn);
+  flashUnit.classList.toggle('off', !flashOn);
+  flashUnit.setAttribute('aria-label', flashOn ? '闪光灯：开（点击关闭）' : '闪光灯：关（点击开启）');
+}
+updateFlashUI(); // 初始化
 
 shutterBtn.addEventListener('click', () => {
   if(!cameraReady || isCapturing) return;
@@ -994,10 +1099,12 @@ shutterBtn.addEventListener('click', () => {
   // 1. 快门音效
   playShutter();
 
-  // 2. 幕帘 + 闪光
+  // 2. 幕帘 + 闪光（仅闪光灯开启时）
   shutterCurtain.classList.add('fire');
-  flashBurst.classList.add('fire');
-  flashUnit.classList.add('firing');
+  if(flashOn){
+    flashBurst.classList.add('fire');
+    flashUnit.classList.add('firing');
+  }
 
   setTimeout(() => {
     shutterCurtain.classList.remove('fire');
@@ -1192,6 +1299,7 @@ lensGlass.addEventListener('click', (e) => {
     focusCenter.classList.remove('focusing');
     focusCenter.classList.add('locked');
     vibrate(25); // 对焦锁定震动
+    playFocusBeep(); // 对焦成功提示音
   }, 500);
 });
 
@@ -1217,3 +1325,5 @@ document.addEventListener('visibilitychange', () => {
 </script>
 </body>
 </html>
+
+
