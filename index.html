@@ -547,6 +547,85 @@ body{
   .filter-dial{width:54px;height:54px;}
   .film-card{width:170px;}
 }
+
+/* ===================== 横屏适配 ===================== */
+@media(orientation:landscape) and (max-height:500px){
+  .camera{
+    width:min(100vw,760px);height:min(100dvh,400px);
+    flex-direction:row;border-radius:24px;
+  }
+  .top-plate{
+    width:70px;height:100%;flex-direction:column;
+    padding:14px 8px;gap:10px;
+    border-bottom:none;border-right:1px solid rgba(0,0,0,0.2);
+  }
+  .brand{font-size:9px;letter-spacing:2px;writing-mode:vertical-rl;}
+  .viewfinder-window{width:36px;height:48px;}
+  .flash-unit{width:32px;height:36px;}
+  .mid-body{flex:1;flex-direction:row;padding:12px 14px;gap:12px;}
+  .lens-assembly{flex:1;height:100%;}
+  .lens-outer-ring{width:100%;height:100%;aspect-ratio:auto;max-width:none;}
+  .controls{
+    width:110px;height:100%;flex-direction:column;
+    justify-content:center;gap:20px;padding:12px 8px;
+    border-top:none;border-left:1px solid rgba(0,0,0,0.25);
+  }
+  .shutter-btn{width:64px;height:64px;}
+  .filter-dial{width:52px;height:52px;}
+  .film-card{width:160px;}
+  .film-slot{bottom:auto;top:0;left:auto;right:0;width:6px;height:60%;}
+  .film-card.ejecting{transform:translateX(-50%) translateY(0) translateX(110%) scale(1);}
+}
+
+/* ===================== 缩放控件 ===================== */
+.zoom-controls{
+  position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:6px;z-index:5;
+  opacity:0;transition:opacity 0.3s;
+}
+.zoom-controls.show{opacity:1;}
+.zoom-pill{
+  padding:4px 10px;
+  background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.15);border-radius:20px;
+  color:#fff;font-size:11px;font-weight:700;cursor:pointer;
+  transition:all 0.15s;-webkit-appearance:none;min-width:36px;text-align:center;
+}
+.zoom-pill:active{transform:scale(0.92);}
+.zoom-pill.active{
+  background:var(--shutter-red);border-color:var(--shutter-red);
+  box-shadow:0 0 10px rgba(196,30,58,0.5);
+}
+
+/* ===================== 胶片关闭按钮 ===================== */
+.film-close{
+  position:absolute;top:6px;right:6px;width:24px;height:24px;
+  border-radius:50%;background:rgba(0,0,0,0.5);
+  color:#fff;font-size:16px;font-weight:700;line-height:1;
+  border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity 0.3s;z-index:5;
+  -webkit-appearance:none;padding:0;
+}
+.film-card.developed .film-close{opacity:1;}
+.film-close:active{transform:scale(0.9);background:rgba(0,0,0,0.7);}
+
+/* ===================== 对焦框状态 ===================== */
+.focus-center{
+  border-color:rgba(255,255,255,0.6);
+  transition:all 0.3s cubic-bezier(0.22,1.2,0.36,1);
+}
+.focus-center.focusing{
+  border-color:#ffaa00;box-shadow:0 0 8px rgba(255,170,0,0.5);
+  animation:focusBlink 0.4s ease-in-out 2;
+}
+@keyframes focusBlink{0%,100%{opacity:1;}50%{opacity:0.4;}}
+
+/* 取景框视频缩放（数码变焦兜底） */
+#viewfinder{
+  transition:filter 0.4s ease, transform 0.3s ease;
+  transform-origin:center center;
+}
 </style>
 </head>
 <body>
@@ -575,6 +654,11 @@ body{
             </div>
             <div class="flash-burst" id="flashBurst"></div>
             <div class="lens-reflection"></div>
+            <div class="zoom-controls" id="zoomControls">
+              <button class="zoom-pill" data-zoom="1">1x</button>
+              <button class="zoom-pill" data-zoom="2">2x</button>
+              <button class="zoom-pill" data-zoom="3">3x</button>
+            </div>
           </div>
         </div>
       </div>
@@ -585,6 +669,7 @@ body{
 
     <!-- 胶片卡片 -->
     <div class="film-card" id="filmCard">
+      <button class="film-close" id="filmClose" aria-label="关闭">×</button>
       <div class="film-photo">
         <canvas id="photoCanvas"></canvas>
       </div>
@@ -652,6 +737,51 @@ const statusBar = document.getElementById('statusBar');
 const focusGrid = document.getElementById('focusGrid');
 const focusCenter = document.getElementById('focusCenter');
 const filmCounter = document.getElementById('filmCounter');
+const zoomControls = document.getElementById('zoomControls');
+const filmClose = document.getElementById('filmClose');
+const zoomPills = document.querySelectorAll('.zoom-pill');
+
+/* ===================== 震动反馈 ===================== */
+function vibrate(pattern){
+  if(navigator.vibrate){
+    try{ navigator.vibrate(pattern); }catch(e){}
+  }
+}
+
+/* ===================== 镜头缩放 ===================== */
+let videoTrack = null;
+let currentZoom = 1;
+let supportsOpticalZoom = false;
+let zoomCapabilities = null;
+
+function setZoom(z){
+  currentZoom = Math.max(1, Math.min(3, z));
+  if(supportsOpticalZoom && videoTrack){
+    try{
+      const zc = zoomCapabilities;
+      const targetZoom = Math.max(zc.min, Math.min(zc.max, currentZoom));
+      videoTrack.applyConstraints({ advanced: [{ zoom: targetZoom }] }).catch(()=>{});
+    }catch(e){}
+  }else{
+    video.style.transform = `scale(${currentZoom})`;
+  }
+  // 更新缩放按钮状态
+  zoomPills.forEach(p => {
+    const zv = parseFloat(p.dataset.zoom);
+    p.classList.toggle('active', Math.abs(currentZoom - zv) < 0.25);
+  });
+}
+
+/* ===================== 屏幕旋转适配 ===================== */
+function handleOrientation(){
+  const isLandscape = window.innerWidth > window.innerHeight;
+  document.body.dataset.orientation = isLandscape ? 'landscape' : 'portrait';
+}
+if(window.screen && screen.orientation){
+  screen.orientation.addEventListener('change', handleOrientation);
+}
+window.addEventListener('resize', handleOrientation);
+handleOrientation();
 
 /* ===================== 滤镜配置 ===================== */
 const FILTERS = [
@@ -793,12 +923,31 @@ async function startCamera(){
     video.srcObject = stream;
     await video.play();
     cameraReady = true;
+    // 检测光学变焦能力
+    videoTrack = stream.getVideoTracks()[0];
+    if(videoTrack.getCapabilities){
+      try{
+        const caps = videoTrack.getCapabilities();
+        if(caps.zoom && caps.zoom.max > caps.zoom.min){
+          supportsOpticalZoom = true;
+          zoomCapabilities = caps.zoom;
+        }
+      }catch(e){}
+    }
     startOverlay.classList.add('hidden');
     statusBar.classList.add('show');
     focusGrid.classList.add('show');
+    zoomControls.classList.add('show');
     applyFilter();
-    // 对焦锁定动画
-    setTimeout(() => { focusCenter.classList.add('locked'); }, 600);
+    setZoom(1);
+    // 对焦：先白色闪烁，再锁定变绿+震动
+    focusCenter.classList.remove('locked','focusing');
+    focusCenter.classList.add('focusing');
+    setTimeout(() => {
+      focusCenter.classList.remove('focusing');
+      focusCenter.classList.add('locked');
+      vibrate(30);
+    }, 800);
   }catch(err){
     console.error('Camera error:', err);
     startError.textContent = '无法访问相机，请确保已授权相机权限，并通过 HTTPS 或 localhost 访问';
@@ -824,6 +973,7 @@ function applyFilter(){
 filterDial.addEventListener('click', () => {
   initAudio();
   playDialClick();
+  vibrate([15, 30, 15]); // 强烈瞬间震动
   currentFilter = (currentFilter + 1) % FILTERS.length;
   applyFilter();
   // 拨盘旋转动效
@@ -839,6 +989,7 @@ shutterBtn.addEventListener('click', () => {
   if(!cameraReady || isCapturing) return;
   isCapturing = true;
   initAudio();
+  vibrate([20, 40, 20, 40, 20]); // 快门强烈震动
 
   // 1. 快门音效
   playShutter();
@@ -888,8 +1039,9 @@ function capturePhoto(){
   // 应用滤镜
   ctx.filter = f.canvas === 'none' ? 'none' : f.canvas;
 
-  // 计算 cover 裁剪（正方形）
-  const srcSize = Math.min(vw, vh);
+  // 计算 cover 裁剪（正方形），数码变焦时裁切中心区域
+  const zoomFactor = (!supportsOpticalZoom && currentZoom > 1) ? currentZoom : 1;
+  const srcSize = Math.min(vw, vh) / zoomFactor;
   const srcX = (vw - srcSize) / 2;
   const srcY = (vh - srcSize) / 2;
 
@@ -906,17 +1058,17 @@ function capturePhoto(){
   ctx.fillStyle = grad;
   ctx.fillRect(photoX, photoY, photoSize, photoSize);
 
-  // 底部日期
+  // 底部日期（橘红色，索尼拍立得风格）
   const now = new Date();
   const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
-  ctx.fillStyle = '#b0a898';
-  ctx.font = '600 28px "Courier New", monospace';
+  ctx.fillStyle = '#E85D2A';
+  ctx.font = '700 28px "Courier New", monospace';
   ctx.textAlign = 'left';
   ctx.fillText(dateStr, photoX, canvasH - 60);
 
-  // 右下角小标
-  ctx.fillStyle = '#c8c0b0';
-  ctx.font = '600 20px "Courier New", monospace';
+  // 右下角小标（橘红色）
+  ctx.fillStyle = '#E85D2A';
+  ctx.font = '700 20px "Courier New", monospace';
   ctx.textAlign = 'right';
   ctx.fillText('POLAROID', canvasW - photoX, canvasH - 60);
 
@@ -954,10 +1106,12 @@ function ejectFilm(){
 }
 
 /* ===================== 下载照片 ===================== */
-filmCard.addEventListener('click', () => {
+filmCard.addEventListener('click', (e) => {
+  if(e.target.closest('.film-close')) return; // 点击关闭按钮不触发下载
   if(!filmCard.classList.contains('developed')) return;
   initAudio();
   playButtonClick();
+  vibrate(20);
 
   const link = document.createElement('a');
   const now = new Date();
@@ -969,18 +1123,76 @@ filmCard.addEventListener('click', () => {
   document.body.removeChild(link);
 });
 
+/* ===================== 关闭胶片 ===================== */
+filmClose.addEventListener('click', (e) => {
+  e.stopPropagation();
+  initAudio();
+  playButtonClick();
+  vibrate(15);
+  filmCard.classList.remove('ejecting','developed');
+  const canvasEl = photoCanvas;
+  canvasEl.style.opacity = '0';
+  setTimeout(() => { isCapturing = false; }, 300);
+});
+
+/* ===================== 缩放按钮 ===================== */
+zoomPills.forEach(pill => {
+  pill.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if(!cameraReady) return;
+    initAudio();
+    playButtonClick();
+    vibrate(15);
+    const z = parseFloat(pill.dataset.zoom);
+    setZoom(z);
+  });
+});
+
+/* ===================== 捏合缩放手势 ===================== */
+let pinchStartDist = 0;
+let pinchStartZoom = 1;
+const lensGlass = document.querySelector('.lens-glass');
+lensGlass.addEventListener('touchstart', (e) => {
+  if(e.touches.length === 2){
+    pinchStartDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    pinchStartZoom = currentZoom;
+  }
+}, { passive: true });
+lensGlass.addEventListener('touchmove', (e) => {
+  if(e.touches.length === 2){
+    e.preventDefault();
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    if(pinchStartDist > 0){
+      setZoom(pinchStartZoom * (dist / pinchStartDist));
+    }
+  }
+}, { passive: false });
+
 /* ===================== 取景框点击对焦 ===================== */
-document.querySelector('.lens-glass').addEventListener('click', (e) => {
+lensGlass.addEventListener('click', (e) => {
   if(!cameraReady) return;
+  if(e.target.closest('.zoom-controls')) return; // 点击缩放按钮不触发对焦
   const rect = e.currentTarget.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
   focusCenter.style.left = x + 'px';
   focusCenter.style.top = y + 'px';
-  focusCenter.classList.remove('locked');
+  // 白色 → 对焦中(黄色闪烁) → 锁定(绿色)+震动
+  focusCenter.classList.remove('locked','focusing');
   void focusCenter.offsetWidth;
-  focusCenter.classList.add('locked');
+  focusCenter.classList.add('focusing');
   playButtonClick();
+  setTimeout(() => {
+    focusCenter.classList.remove('focusing');
+    focusCenter.classList.add('locked');
+    vibrate(25); // 对焦锁定震动
+  }, 500);
 });
 
 /* ===================== 防止移动端滑动 ===================== */
