@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>拍立得 · Polaroid Camera</title>
+<title>拍立得 · Zhenhui Camera</title>
 <style>
 /* ===================== 全局重置与变量 ===================== */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
@@ -712,7 +712,7 @@ body{
   <!-- 顶部面板 -->
   <div class="top-plate">
     <div class="brand-wrap">
-      <div class="brand"><span class="brand-dot"></span>POLAROID</div>
+      <div class="brand"><span class="brand-dot"></span>ZHENHUI</div>
       <div class="status-bar" id="statusBar">
         <span class="status-dot"></span>
         <span class="status-text">LIVE · 后置镜头</span>
@@ -832,18 +832,27 @@ function vibrate(pattern){
 /* ===================== 镜头缩放 ===================== */
 let videoTrack = null;
 let currentZoom = 1;
-let supportsOpticalZoom = false;
+let supportsOpticalZoom = false; // 是否启用原生焦段（仅移动端且摄像头 zoom 能力覆盖 1~3x 时）
 let zoomCapabilities = null;
+
+// 判断是否为手机/平板：真正的光学焦段只存在于移动设备摄像头；
+// 桌面摄像头/驱动的 zoom 大多是数码裁切，启用会造成不同浏览器 1x 画面不一致。
+function isMobileDevice(){
+  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent)
+      || (typeof navigator.userAgentData !== 'undefined' && !!navigator.userAgentData.mobile);
+}
 
 function setZoom(z){
   currentZoom = Math.max(1, Math.min(3, z));
-  if(supportsOpticalZoom && videoTrack){
+  if(supportsOpticalZoom && videoTrack && zoomCapabilities){
+    // 原生焦段：1x 用原生广角（min），2x/3x 用对应光学倍率，浏览器自动切换镜头，更清晰
+    const targetZoom = Math.max(zoomCapabilities.min, Math.min(zoomCapabilities.max, currentZoom));
+    video.style.transform = 'none';
     try{
-      const zc = zoomCapabilities;
-      const targetZoom = Math.max(zc.min, Math.min(zc.max, currentZoom));
       videoTrack.applyConstraints({ advanced: [{ zoom: targetZoom }] }).catch(()=>{});
     }catch(e){}
   }else{
+    // 不支持原生焦段：CSS 数码变焦兜底（1x 即 scale(1)，保持原生画面，各浏览器一致）
     video.style.transform = `scale(${currentZoom})`;
   }
   // 更新缩放按钮状态
@@ -1023,14 +1032,18 @@ async function startCamera(){
     video.srcObject = stream;
     await video.play();
     cameraReady = true;
-    // 检测光学变焦能力
+    // 检测原生焦段：仅移动端启用，且 zoom 能力需覆盖 1~3x（min<=1、max>=3）。
+    // 桌面摄像头/驱动的 zoom 多为数码裁切，启用会导致各浏览器 1x 画面不一致，因此不启用。
     videoTrack = stream.getVideoTracks()[0];
-    if(videoTrack.getCapabilities){
+    supportsOpticalZoom = false;
+    zoomCapabilities = null;
+    if(isMobileDevice() && videoTrack && videoTrack.getCapabilities){
       try{
         const caps = videoTrack.getCapabilities();
-        if(caps.zoom && caps.zoom.max > caps.zoom.min){
+        const zc = caps && caps.zoom;
+        if(zc && zc.min <= 1.05 && zc.max >= 2.9){
           supportsOpticalZoom = true;
-          zoomCapabilities = caps.zoom;
+          zoomCapabilities = zc;
         }
       }catch(e){}
     }
