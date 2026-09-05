@@ -43,7 +43,10 @@ body{
 /* ===================== 相机整机 ===================== */
 .camera{
   position:relative;
-  width:min(100vw, 420px);
+  width:100vw;
+  max-width:420px;
+  height:100vh;
+  max-height:860px;
   height:min(100dvh, 860px);
   display:flex;flex-direction:column;
   background:linear-gradient(160deg, var(--body-silver-light) 0%, var(--body-silver) 30%, var(--body-silver-dark) 100%);
@@ -197,7 +200,8 @@ body{
   min-height:0;
 }
 .lens-outer-ring{
-  width:min(88%, 340px);
+  width:88%;
+  max-width:340px;
   aspect-ratio:4/3;
   border-radius:18px;
   background:linear-gradient(145deg, var(--chrome), var(--chrome-dark));
@@ -279,6 +283,7 @@ body{
   position:absolute;top:10px;left:50%;
   transform:translateX(-50%);
   background:rgba(0,0,0,0.55);
+  -webkit-backdrop-filter:blur(8px);
   backdrop-filter:blur(8px);
   color:#fff;font-size:11px;font-weight:600;letter-spacing:2px;
   padding:4px 14px;border-radius:20px;
@@ -523,6 +528,7 @@ body{
 .start-overlay{
   position:absolute;inset:0;
   background:rgba(20,20,20,0.92);
+  -webkit-backdrop-filter:blur(10px);
   backdrop-filter:blur(10px);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   z-index:100;
@@ -614,7 +620,7 @@ body{
 .zoom-controls.show{opacity:1;}
 .zoom-pill{
   padding:4px 10px;
-  background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);
+  background:rgba(0,0,0,0.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
   border:1px solid rgba(255,255,255,0.15);border-radius:20px;
   color:#fff;font-size:11px;font-weight:700;cursor:pointer;
   transition:all 0.15s;-webkit-appearance:none;min-width:36px;text-align:center;
@@ -658,7 +664,9 @@ body{
 /* ===================== 横屏适配（放在最后确保优先级） ===================== */
 @media(orientation:landscape) and (max-height:500px){
   .camera{
-    width:min(100vw,760px);height:min(100dvh,400px);
+    width:100vw;max-width:760px;
+    height:100vh;max-height:400px;
+    height:min(100dvh,400px);
     flex-direction:row;border-radius:24px;
   }
   .top-plate{
@@ -703,6 +711,17 @@ body{
   }
   /* 横屏：隐藏LIVE字样 */
   .status-bar{display:none !important;}
+}
+/* ===================== 旧内核兼容：不支持 aspect-ratio 时的兜底 ===================== */
+@supports not (aspect-ratio: 4 / 3){
+  .lens-outer-ring{height:240px;}
+  .film-photo{height:200px;}
+}
+@media(orientation:landscape) and (max-height:500px){
+  @supports not (aspect-ratio: 4 / 3){
+    .lens-outer-ring{height:100%;}
+    .film-photo{height:150px;}
+  }
 }
 </style>
 </head>
@@ -867,7 +886,7 @@ function handleOrientation(){
   const isLandscape = window.innerWidth > window.innerHeight;
   document.body.dataset.orientation = isLandscape ? 'landscape' : 'portrait';
 }
-if(window.screen && screen.orientation){
+if(window.screen && screen.orientation && screen.orientation.addEventListener){
   screen.orientation.addEventListener('change', handleOrientation);
 }
 window.addEventListener('resize', handleOrientation);
@@ -1372,6 +1391,10 @@ document.addEventListener('visibilitychange', () => {
 </script>
 </body>
 </html>
+
+
+
+
 
 
 
