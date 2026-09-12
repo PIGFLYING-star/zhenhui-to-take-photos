@@ -1083,7 +1083,7 @@ async function startCamera(){
     }, 800);
   }catch(err){
     console.error('Camera error:', err);
-    startError.textContent = '无法访问相机，请确保已授权相机权限，并通过 HTTPS 或 localhost 访问';
+    startError.textContent = '无法访问相机，请确保已授权相机权限，并通过 HTTPS 或 localhost 访问再或者回到主站联系开发者';
     startError.style.whiteSpace = 'normal';
     startError.style.lineHeight = '1.6';
     startError.classList.add('show');
